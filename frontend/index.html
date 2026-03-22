@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Seykota Machine — Command Center</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg: #0d1117;
+  --bg2: #161b22;
+  --bg3: #21262d;
+  --border: #30363d;
+  --text: #e6edf3;
+  --text2: #8b949e;
+  --green: #00ff88;
+  --red: #ff4444;
+  --yellow: #ffcc00;
+  --blue: #58a6ff;
+  --cyan: #00e5ff;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Cascadia Code', monospace;
+  font-size: 13px;
+  min-height: 100vh;
+}
+a { color: var(--blue); text-decoration: none; }
+
+/* Auth overlay */
+#auth-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+  flex-direction: column; gap: 20px;
+}
+#auth-overlay h1 { color: var(--green); font-size: 20px; letter-spacing: 4px; }
+#auth-overlay input {
+  background: var(--bg2); border: 1px solid var(--border); color: var(--text);
+  padding: 12px 20px; font-family: inherit; font-size: 14px; width: 300px;
+  border-radius: 6px; outline: none;
+}
+#auth-overlay input:focus { border-color: var(--green); }
+#auth-overlay .error { color: var(--red); font-size: 12px; min-height: 16px; }
+
+/* Header */
+header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 24px; border-bottom: 1px solid var(--border);
+  background: var(--bg2);
+}
+.logo { display: flex; align-items: center; gap: 12px; }
+.logo h1 { font-size: 16px; letter-spacing: 3px; color: var(--green); font-weight: 700; }
+.logo span { color: var(--text2); font-size: 11px; }
+.header-right { display: flex; align-items: center; gap: 20px; }
+.utc-clock { color: var(--cyan); font-size: 14px; font-weight: 600; }
+
+/* Mode toggle */
+.mode-toggle {
+  display: flex; background: var(--bg); border-radius: 6px; overflow: hidden;
+  border: 1px solid var(--border);
+}
+.mode-btn {
+  padding: 8px 16px; cursor: pointer; font-family: inherit; font-size: 12px;
+  font-weight: 600; border: none; background: transparent; color: var(--text2);
+  transition: all 0.2s;
+}
+.mode-btn.active-paper { background: rgba(255,204,0,0.15); color: var(--yellow); }
+.mode-btn.active-live { background: rgba(0,255,136,0.15); color: var(--green); }
+.mode-btn.disabled-live {
+  background: transparent; color: #484f58; cursor: not-allowed; opacity: 0.5;
+}
+.mode-indicator {
+  display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  margin-right: 6px; vertical-align: middle;
+}
+.mode-indicator.paper { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); }
+.mode-indicator.live { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.mode-indicator.disabled { background: #484f58; }
+
+/* Main grid */
+.dashboard {
+  display: grid; gap: 16px; padding: 16px 24px;
+  grid-template-columns: 1fr 1fr 1fr;
+}
+.card {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 16px; overflow: hidden;
+}
+.card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border);
+}
+.card-title {
+  font-size: 11px; letter-spacing: 2px; color: var(--text2);
+  text-transform: uppercase; font-weight: 600;
+}
+
+/* Stats bar */
+.stats-bar {
+  grid-column: 1 / -1;
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+}
+.stat-card {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 16px; text-align: center;
+}
+.stat-label { font-size: 10px; letter-spacing: 2px; color: var(--text2); text-transform: uppercase; margin-bottom: 6px; }
+.stat-value { font-size: 24px; font-weight: 700; }
+.stat-value.positive { color: var(--green); }
+.stat-value.negative { color: var(--red); }
+.stat-value.neutral { color: var(--text); }
+.stat-sub { font-size: 10px; color: var(--text2); margin-top: 4px; }
+
+/* Equity chart */
+.equity-section { grid-column: 1 / -1; }
+.chart-toggles { display: flex; gap: 6px; }
+.chart-toggle {
+  padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border);
+  background: transparent; color: var(--text2); cursor: pointer;
+  font-family: inherit; font-size: 11px;
+}
+.chart-toggle.active { background: var(--green); color: var(--bg); border-color: var(--green); }
+.chart-container { height: 280px; margin-top: 8px; }
+
+/* Instrument grid */
+.instruments-section { grid-column: 1 / -1; }
+.instrument-grid {
+  display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px;
+}
+.inst-card {
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 6px;
+  padding: 12px; position: relative;
+}
+.inst-symbol { font-size: 16px; font-weight: 700; color: var(--text); }
+.inst-name { font-size: 9px; color: var(--text2); margin-bottom: 8px; }
+.inst-price { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+.inst-trend {
+  display: inline-block; padding: 2px 8px; border-radius: 3px;
+  font-size: 10px; font-weight: 600; letter-spacing: 1px;
+}
+.trend-long { background: rgba(0,255,136,0.15); color: var(--green); }
+.trend-short { background: rgba(255,68,68,0.15); color: var(--red); }
+.trend-flat { background: rgba(139,148,158,0.15); color: var(--text2); }
+.inst-badge {
+  position: absolute; top: 10px; right: 10px;
+  padding: 2px 8px; border-radius: 3px; font-size: 9px; font-weight: 700;
+  letter-spacing: 1px;
+}
+.badge-long { background: rgba(0,255,136,0.2); color: var(--green); }
+.badge-short { background: rgba(255,68,68,0.2); color: var(--red); }
+.badge-scanning { background: rgba(139,148,158,0.15); color: var(--text2); }
+.inst-pnl { font-size: 12px; margin-top: 6px; font-weight: 600; }
+.sparkline-container { height: 30px; margin-top: 6px; }
+
+/* Trades */
+.trades-section { grid-column: 1 / 3; }
+.trade-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.trade-table th {
+  text-align: left; padding: 6px 8px; color: var(--text2); font-weight: 600;
+  border-bottom: 1px solid var(--border); font-size: 10px; letter-spacing: 1px;
+}
+.trade-table td { padding: 6px 8px; border-bottom: 1px solid rgba(48,54,61,0.5); }
+.trade-table tr:hover { background: rgba(48,54,61,0.3); }
+
+/* Veto log */
+.veto-section { grid-column: 3 / 4; }
+.veto-item {
+  padding: 8px 0; border-bottom: 1px solid rgba(48,54,61,0.5);
+  font-size: 11px;
+}
+.veto-item:last-child { border-bottom: none; }
+.veto-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 3px;
+  font-size: 9px; font-weight: 700; letter-spacing: 1px;
+}
+.veto-approved { background: rgba(0,255,136,0.15); color: var(--green); }
+.veto-blocked { background: rgba(255,68,68,0.15); color: var(--red); }
+.veto-reason { color: var(--text2); font-size: 10px; margin-top: 4px; }
+
+/* Risk exposure */
+.risk-section { grid-column: 1 / 2; }
+.risk-bar-wrap { margin-bottom: 10px; }
+.risk-bar-label {
+  display: flex; justify-content: space-between; font-size: 11px;
+  margin-bottom: 4px;
+}
+.risk-bar-bg {
+  height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden;
+}
+.risk-bar-fill {
+  height: 100%; border-radius: 4px; transition: width 0.5s;
+}
+
+/* Monthly P&L heatmap */
+.heatmap-section { grid-column: 2 / 3; }
+.heatmap-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+}
+.heatmap-cell {
+  padding: 10px 8px; border-radius: 4px; text-align: center;
+  font-size: 11px; font-weight: 600;
+}
+
+/* Radar */
+.radar-section { grid-column: 3 / 4; }
+.radar-svg { width: 100%; height: 200px; }
+
+/* Footer */
+footer {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 24px; border-top: 1px solid var(--border);
+  background: var(--bg2); font-size: 11px; color: var(--text2);
+}
+.footer-items { display: flex; gap: 24px; }
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .dashboard { grid-template-columns: 1fr; }
+  .stats-bar { grid-template-columns: repeat(2, 1fr); }
+  .equity-section, .instruments-section, .trades-section, .veto-section,
+  .risk-section, .heatmap-section, .radar-section { grid-column: 1 / -1; }
+  .instrument-grid { grid-template-columns: repeat(3, 1fr); }
+  header { flex-direction: column; gap: 12px; }
+}
+@media (max-width: 600px) {
+  .dashboard { padding: 8px; gap: 8px; }
+  .stats-bar { grid-template-columns: 1fr; }
+  .instrument-grid { grid-template-columns: 1fr 1fr; }
+  header { padding: 12px; }
+  footer { flex-direction: column; gap: 8px; text-align: center; }
+}
+
+/* Loading pulse */
+@keyframes pulse { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }
+.loading { animation: pulse 1.5s infinite; color: var(--text2); text-align: center; padding: 40px; }
+
+/* Radar animation */
+@keyframes radar-sweep { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.radar-sweep { animation: radar-sweep 4s linear infinite; transform-origin: center; }
+</style>
+</head>
+<body>
+
+<!-- Auth Overlay -->
+<div id="auth-overlay">
+  <h1>THE SEYKOTA MACHINE</h1>
+  <div style="color: var(--text2); font-size: 12px; letter-spacing: 2px;">COMMAND CENTER</div>
+  <input type="password" id="auth-input" placeholder="Enter access token" autofocus>
+  <div class="error" id="auth-error"></div>
+</div>
+
+<!-- Main App -->
+<div id="app" style="display: none;">
+
+<header>
+  <div class="logo">
+    <h1>THE SEYKOTA MACHINE</h1>
+    <span>COMMAND CENTER</span>
+  </div>
+  <div class="header-right">
+    <div class="mode-toggle">
+      <button class="mode-btn" id="btn-paper" onclick="setMode('paper')">
+        <span class="mode-indicator paper"></span>PAPER
+      </button>
+      <button class="mode-btn" id="btn-live" onclick="setMode('live')">
+        <span class="mode-indicator" id="live-indicator"></span>LIVE
+      </button>
+    </div>
+    <div class="utc-clock" id="utc-clock"></div>
+  </div>
+</header>
+
+<div class="dashboard">
+  <!-- Stats Bar -->
+  <div class="stats-bar">
+    <div class="stat-card">
+      <div class="stat-label">Equity</div>
+      <div class="stat-value neutral" id="stat-equity">$100,000</div>
+      <div class="stat-sub" id="stat-equity-sub"></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Daily P&amp;L</div>
+      <div class="stat-value neutral" id="stat-pnl">$0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Max Drawdown</div>
+      <div class="stat-value neutral" id="stat-drawdown">0.00%</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Total Risk</div>
+      <div class="stat-value neutral" id="stat-risk">0.00%</div>
+      <div class="stat-sub" id="stat-risk-sub">of 12% max</div>
+    </div>
+  </div>
+
+  <!-- Equity Chart -->
+  <div class="card equity-section">
+    <div class="card-header">
+      <span class="card-title">Equity Curve</span>
+      <div class="chart-toggles">
+        <button class="chart-toggle active" onclick="setChartRange(7, this)">1D</button>
+        <button class="chart-toggle" onclick="setChartRange(7, this)">1W</button>
+        <button class="chart-toggle" onclick="setChartRange(30, this)">1M</button>
+        <button class="chart-toggle" onclick="setChartRange(365, this)">1Y</button>
+      </div>
+    </div>
+    <div class="chart-container"><canvas id="equity-chart"></canvas></div>
+  </div>
+
+  <!-- Instrument Grid -->
+  <div class="card instruments-section">
+    <div class="card-header">
+      <span class="card-title">Instruments</span>
+    </div>
+    <div class="instrument-grid" id="instrument-grid"></div>
+  </div>
+
+  <!-- Recent Trades -->
+  <div class="card trades-section">
+    <div class="card-header"><span class="card-title">Recent Trades</span></div>
+    <div style="max-height: 300px; overflow-y: auto;">
+      <table class="trade-table">
+        <thead><tr>
+          <th>TIME</th><th>SYMBOL</th><th>ACTION</th><th>DIR</th>
+          <th>QTY</th><th>PRICE</th><th>P&amp;L</th>
+        </tr></thead>
+        <tbody id="trades-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- AI Veto Log -->
+  <div class="card veto-section">
+    <div class="card-header"><span class="card-title">AI Veto Log</span></div>
+    <div id="veto-log" style="max-height: 300px; overflow-y: auto;"></div>
+  </div>
+
+  <!-- Risk Exposure -->
+  <div class="card risk-section">
+    <div class="card-header"><span class="card-title">Risk Exposure</span></div>
+    <div id="risk-bars"></div>
+  </div>
+
+  <!-- Monthly P&L Heatmap -->
+  <div class="card heatmap-section">
+    <div class="card-header"><span class="card-title">Monthly P&amp;L</span></div>
+    <div class="heatmap-grid" id="heatmap-grid"></div>
+  </div>
+
+  <!-- Breakout Radar -->
+  <div class="card radar-section">
+    <div class="card-header"><span class="card-title">Breakout Scanner</span></div>
+    <svg class="radar-svg" viewBox="0 0 200 200" id="radar-svg">
+      <circle cx="100" cy="100" r="90" fill="none" stroke="#30363d" stroke-width="1"/>
+      <circle cx="100" cy="100" r="60" fill="none" stroke="#30363d" stroke-width="0.5"/>
+      <circle cx="100" cy="100" r="30" fill="none" stroke="#30363d" stroke-width="0.5"/>
+      <line x1="100" y1="10" x2="100" y2="190" stroke="#30363d" stroke-width="0.5"/>
+      <line x1="10" y1="100" x2="190" y2="100" stroke="#30363d" stroke-width="0.5"/>
+      <!-- Sweep line -->
+      <g class="radar-sweep">
+        <line x1="100" y1="100" x2="100" y2="10" stroke="rgba(0,255,136,0.6)" stroke-width="2"/>
+        <defs>
+          <linearGradient id="sweepGrad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="rgba(0,255,136,0)" />
+            <stop offset="100%" stop-color="rgba(0,255,136,0.2)" />
+          </linearGradient>
+        </defs>
+        <path d="M100,100 L100,10 A90,90 0 0,0 22,55 Z" fill="url(#sweepGrad)"/>
+      </g>
+      <!-- Instrument dots will be placed here -->
+      <g id="radar-dots"></g>
+      <!-- Labels -->
+      <text x="100" y="200" text-anchor="middle" fill="#8b949e" font-size="8" font-family="monospace">SCANNING</text>
+    </svg>
+  </div>
+</div>
+
+<footer>
+  <div class="footer-items">
+    <span>Paper Day: <strong id="footer-day">0</strong></span>
+    <span>Next Scan: <strong id="footer-scan">21:15 UTC</strong></span>
+    <span>Refresh: <strong>30s</strong></span>
+  </div>
+  <div class="footer-items">
+    <span>The Seykota Machine v1.0</span>
+    <span id="footer-clock"></span>
+  </div>
+</footer>
+
+</div>
+
+<script>
+// ─── State ───
+let API_BASE = '';
+let TOKEN = '';
+let MODE = localStorage.getItem('seykota_mode') || 'paper';
+let equityChart = null;
+let sparkCharts = {};
+let allEquityData = [];
+let LIVE_EXISTS = false;
+
+// ─── Auth ───
+document.getElementById('auth-input').addEventListener('keydown', async (e) => {
+  if (e.key !== 'Enter') return;
+  const val = e.target.value.trim();
+  try {
+    const res = await fetch(`${API_BASE}/api/auth?token=${encodeURIComponent(val)}`);
+    if (res.ok) {
+      TOKEN = val;
+      localStorage.setItem('seykota_token', val);
+      document.getElementById('auth-overlay').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+      init();
+    } else {
+      document.getElementById('auth-error').textContent = 'Invalid token';
+    }
+  } catch {
+    document.getElementById('auth-error').textContent = 'Connection error';
+  }
+});
+
+// Try stored token on load
+window.addEventListener('DOMContentLoaded', async () => {
+  const stored = localStorage.getItem('seykota_token');
+  if (stored) {
+    try {
+      const res = await fetch(`${API_BASE}/api/auth?token=${encodeURIComponent(stored)}`);
+      if (res.ok) {
+        TOKEN = stored;
+        document.getElementById('auth-overlay').style.display = 'none';
+        document.getElementById('app').style.display = 'block';
+        init();
+        return;
+      }
+    } catch {}
+  }
+  // If no DASHBOARD_TOKEN is set, allow access without auth
+  try {
+    const res = await fetch(`${API_BASE}/api/auth?token=`);
+    if (res.ok) {
+      document.getElementById('auth-overlay').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+      init();
+    }
+  } catch {}
+});
+
+// ─── Mode Toggle ───
+function setMode(mode) {
+  if (mode === 'live' && !LIVE_EXISTS) return;
+  MODE = mode;
+  localStorage.setItem('seykota_mode', mode);
+  updateModeUI();
+  refreshAll();
+}
+
+function updateModeUI() {
+  const paperBtn = document.getElementById('btn-paper');
+  const liveBtn = document.getElementById('btn-live');
+  const liveInd = document.getElementById('live-indicator');
+
+  paperBtn.className = 'mode-btn' + (MODE === 'paper' ? ' active-paper' : '');
+  if (!LIVE_EXISTS) {
+    liveBtn.className = 'mode-btn disabled-live';
+    liveBtn.title = 'LIVE — Not yet deployed';
+    liveInd.className = 'mode-indicator disabled';
+  } else {
+    liveBtn.className = 'mode-btn' + (MODE === 'live' ? ' active-live' : '');
+    liveInd.className = 'mode-indicator live';
+  }
+}
+
+// ─── API Helpers ───
+async function apiFetch(endpoint) {
+  const sep = endpoint.includes('?') ? '&' : '?';
+  const url = `${API_BASE}${endpoint}${sep}mode=${MODE}&token=${encodeURIComponent(TOKEN)}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`${res.status}`);
+  return res.json();
+}
+
+// ─── Clock ───
+function updateClock() {
+  const now = new Date();
+  const utc = now.toISOString().slice(11, 19) + ' UTC';
+  document.getElementById('utc-clock').textContent = utc;
+  document.getElementById('footer-clock').textContent = utc;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ─── Format Helpers ───
+function fmtMoney(v) {
+  if (v == null) return '$0';
+  const abs = Math.abs(v);
+  const str = abs >= 1000 ? abs.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0}) :
+    abs.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  return (v < 0 ? '-$' : '$') + str;
+}
+function fmtPct(v) { return v != null ? v.toFixed(2) + '%' : '0.00%'; }
+function fmtPrice(v) {
+  if (v == null) return '—';
+  return v >= 100 ? v.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) :
+    v.toFixed(4);
+}
+function pnlClass(v) { return v > 0 ? 'positive' : v < 0 ? 'negative' : 'neutral'; }
+
+// ─── Status ───
+async function loadStatus() {
+  try {
+    const data = await apiFetch('/api/status');
+    if (!data.exists) {
+      document.getElementById('stat-equity').textContent = '—';
+      document.getElementById('stat-pnl').textContent = '—';
+      document.getElementById('stat-drawdown').textContent = '—';
+      document.getElementById('stat-risk').textContent = '—';
+      return;
+    }
+    const eq = document.getElementById('stat-equity');
+    eq.textContent = fmtMoney(data.equity);
+    eq.className = 'stat-value ' + pnlClass(data.equity - 100000);
+    document.getElementById('stat-equity-sub').textContent = data.date || '';
+
+    const pnl = document.getElementById('stat-pnl');
+    pnl.textContent = fmtMoney(data.daily_pnl);
+    pnl.className = 'stat-value ' + pnlClass(data.daily_pnl);
+
+    const dd = document.getElementById('stat-drawdown');
+    dd.textContent = fmtPct(data.drawdown_pct);
+    dd.className = 'stat-value ' + (data.drawdown_pct < -5 ? 'negative' : 'neutral');
+
+    const risk = document.getElementById('stat-risk');
+    risk.textContent = fmtPct(data.total_risk_pct);
+    risk.className = 'stat-value ' + (data.total_risk_pct > 10 ? 'negative' : 'neutral');
+
+    document.getElementById('footer-day').textContent = data.paper_days;
+  } catch(e) { console.error('status error:', e); }
+}
+
+// ─── Equity Chart ───
+async function loadEquityChart() {
+  try {
+    allEquityData = await apiFetch('/api/equity-curve?days=365');
+    renderEquityChart(allEquityData);
+  } catch(e) { console.error('equity chart error:', e); }
+}
+
+function renderEquityChart(data) {
+  const ctx = document.getElementById('equity-chart').getContext('2d');
+  if (equityChart) equityChart.destroy();
+
+  const labels = data.map(d => d.date);
+  const values = data.map(d => d.equity);
+
+  equityChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        borderColor: '#00ff88',
+        backgroundColor: 'rgba(0,255,136,0.05)',
+        borderWidth: 2,
+        fill: true,
+        pointRadius: 0,
+        tension: 0.3,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: {
+          grid: { color: 'rgba(48,54,61,0.5)' },
+          ticks: { color: '#8b949e', font: { family: 'monospace', size: 10 }, maxTicksLimit: 10 }
+        },
+        y: {
+          grid: { color: 'rgba(48,54,61,0.5)' },
+          ticks: {
+            color: '#8b949e', font: { family: 'monospace', size: 10 },
+            callback: v => '$' + v.toLocaleString()
+          }
+        }
+      },
+      interaction: { mode: 'index', intersect: false },
+    }
+  });
+}
+
+function setChartRange(days, btn) {
+  document.querySelectorAll('.chart-toggle').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const sliced = days >= allEquityData.length ? allEquityData : allEquityData.slice(-days);
+  renderEquityChart(sliced);
+}
+
+// ─── Instruments ───
+async function loadInstruments() {
+  try {
+    const instruments = await apiFetch('/api/instruments');
+    const grid = document.getElementById('instrument-grid');
+    grid.innerHTML = '';
+
+    instruments.forEach((inst, i) => {
+      const trendCls = inst.trend === 'LONG' ? 'trend-long' : inst.trend === 'SHORT' ? 'trend-short' : 'trend-flat';
+      const posBadge = inst.position === 'LONG' ? '<span class="inst-badge badge-long">LONG</span>' :
+        inst.position === 'SHORT' ? '<span class="inst-badge badge-short">SHORT</span>' :
+        '<span class="inst-badge badge-scanning">SCANNING</span>';
+
+      const card = document.createElement('div');
+      card.className = 'inst-card';
+      card.innerHTML = `
+        <div class="inst-symbol">${inst.symbol}</div>
+        <div class="inst-name">${inst.name}</div>
+        ${posBadge}
+        <div class="inst-price">${fmtPrice(inst.last_price)}</div>
+        <span class="inst-trend ${trendCls}">${inst.trend}</span>
+        <div class="inst-pnl" style="color: ${inst.pnl >= 0 ? 'var(--green)' : 'var(--red)'}">
+          ${inst.position ? fmtMoney(inst.pnl) : ''}
+        </div>
+        <div class="sparkline-container"><canvas id="spark-${inst.symbol}"></canvas></div>
+      `;
+      grid.appendChild(card);
+
+      // Mini sparkline
+      if (inst.sparkline && inst.sparkline.length > 1) {
+        setTimeout(() => {
+          const canvas = document.getElementById(`spark-${inst.symbol}`);
+          if (!canvas) return;
+          if (sparkCharts[inst.symbol]) sparkCharts[inst.symbol].destroy();
+          sparkCharts[inst.symbol] = new Chart(canvas.getContext('2d'), {
+            type: 'line',
+            data: {
+              labels: inst.sparkline.map((_, j) => j),
+              datasets: [{
+                data: inst.sparkline,
+                borderColor: inst.sparkline[inst.sparkline.length-1] >= inst.sparkline[0] ? '#00ff88' : '#ff4444',
+                borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false,
+              }]
+            },
+            options: {
+              responsive: true, maintainAspectRatio: false,
+              plugins: { legend: { display: false } },
+              scales: { x: { display: false }, y: { display: false } },
+            }
+          });
+        }, 50);
+      }
+
+      // Place radar dot
+      placeRadarDot(inst, i);
+    });
+  } catch(e) { console.error('instruments error:', e); }
+}
+
+function placeRadarDot(inst, idx) {
+  const dots = document.getElementById('radar-dots');
+  const angle = (idx / 6) * Math.PI * 2 - Math.PI / 2;
+  const r = inst.position ? 35 + Math.random() * 20 : 55 + Math.random() * 25;
+  const x = 100 + Math.cos(angle) * r;
+  const y = 100 + Math.sin(angle) * r;
+  const color = inst.position === 'LONG' ? '#00ff88' : inst.position === 'SHORT' ? '#ff4444' : '#8b949e';
+
+  const existing = dots.querySelector(`[data-sym="${inst.symbol}"]`);
+  if (existing) existing.remove();
+
+  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  g.setAttribute('data-sym', inst.symbol);
+  g.innerHTML = `
+    <circle cx="${x}" cy="${y}" r="4" fill="${color}" opacity="0.8"/>
+    <text x="${x}" y="${y - 8}" text-anchor="middle" fill="${color}" font-size="7" font-family="monospace">${inst.symbol}</text>
+  `;
+  dots.appendChild(g);
+}
+
+// ─── Trades ───
+async function loadTrades() {
+  try {
+    const trades = await apiFetch('/api/trades?limit=20');
+    const tbody = document.getElementById('trades-body');
+    if (!trades.length) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text2);padding:20px;">No trades yet</td></tr>';
+      return;
+    }
+    tbody.innerHTML = trades.map(t => `
+      <tr>
+        <td>${t.timestamp ? t.timestamp.slice(0, 16).replace('T', ' ') : '—'}</td>
+        <td style="font-weight:600">${t.symbol}</td>
+        <td>${t.action}</td>
+        <td style="color:${t.direction === 'long' ? 'var(--green)' : 'var(--red)'}">${t.direction.toUpperCase()}</td>
+        <td>${t.contracts}</td>
+        <td>${fmtPrice(t.price)}</td>
+        <td style="color:${t.pnl >= 0 ? 'var(--green)' : 'var(--red)'}; font-weight:600">${fmtMoney(t.pnl)}</td>
+      </tr>
+    `).join('');
+  } catch(e) { console.error('trades error:', e); }
+}
+
+// ─── Veto Log ───
+async function loadVetoLog() {
+  try {
+    const logs = await apiFetch('/api/veto-log?limit=10');
+    const container = document.getElementById('veto-log');
+    if (!logs.length) {
+      container.innerHTML = '<div style="text-align:center;color:var(--text2);padding:20px;">No veto decisions yet</div>';
+      return;
+    }
+    container.innerHTML = logs.map(v => {
+      const blocked = v.ai_veto === 1;
+      return `
+        <div class="veto-item">
+          <span class="veto-badge ${blocked ? 'veto-blocked' : 'veto-approved'}">${blocked ? 'BLOCKED' : 'APPROVED'}</span>
+          <strong style="margin-left:8px">${v.symbol}</strong>
+          <span style="color:var(--text2)"> ${v.direction || ''} ${v.signal_type || ''}</span>
+          <span style="float:right;color:var(--text2);font-size:10px">${v.timestamp ? v.timestamp.slice(0, 10) : ''}</span>
+          ${v.ai_reason ? `<div class="veto-reason">${v.ai_reason}</div>` : ''}
+        </div>
+      `;
+    }).join('');
+  } catch(e) { console.error('veto error:', e); }
+}
+
+// ─── Risk Exposure ───
+async function loadRisk() {
+  try {
+    const data = await apiFetch('/api/risk-exposure');
+    const container = document.getElementById('risk-bars');
+    const maxPct = data.max_risk;
+
+    let html = data.instruments.map(inst => {
+      const pct = inst.risk_pct;
+      const width = Math.min((pct / maxPct) * 100, 100);
+      const color = pct > maxPct * 0.8 ? 'var(--red)' : pct > 0 ? 'var(--green)' : 'var(--text2)';
+      return `
+        <div class="risk-bar-wrap">
+          <div class="risk-bar-label">
+            <span>${inst.symbol}</span>
+            <span>${fmtPct(pct)}</span>
+          </div>
+          <div class="risk-bar-bg">
+            <div class="risk-bar-fill" style="width:${width}%; background:${color}"></div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // Total
+    const totalWidth = Math.min((data.total_risk_pct / maxPct) * 100, 100);
+    const totalColor = data.total_risk_pct > maxPct * 0.8 ? 'var(--red)' : 'var(--yellow)';
+    html += `
+      <div class="risk-bar-wrap" style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border)">
+        <div class="risk-bar-label">
+          <span style="font-weight:700">TOTAL</span>
+          <span style="font-weight:700">${fmtPct(data.total_risk_pct)} / ${maxPct}%</span>
+        </div>
+        <div class="risk-bar-bg" style="height:12px">
+          <div class="risk-bar-fill" style="width:${totalWidth}%; background:${totalColor}; height:100%"></div>
+        </div>
+      </div>
+    `;
+    container.innerHTML = html;
+  } catch(e) { console.error('risk error:', e); }
+}
+
+// ─── Monthly Heatmap ───
+async function loadHeatmap() {
+  try {
+    const data = await apiFetch('/api/monthly-pnl');
+    const grid = document.getElementById('heatmap-grid');
+    if (!data.length) {
+      grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text2);padding:20px;">No data yet</div>';
+      return;
+    }
+    grid.innerHTML = data.map(m => {
+      const pnl = m.pnl;
+      const bg = pnl > 0 ? `rgba(0,255,136,${Math.min(Math.abs(pnl) / 5000, 1) * 0.4})` :
+        pnl < 0 ? `rgba(255,68,68,${Math.min(Math.abs(pnl) / 5000, 1) * 0.4})` : 'rgba(139,148,158,0.1)';
+      const color = pnl > 0 ? 'var(--green)' : pnl < 0 ? 'var(--red)' : 'var(--text2)';
+      return `
+        <div class="heatmap-cell" style="background:${bg}; color:${color}">
+          <div style="font-size:9px;color:var(--text2);margin-bottom:4px">${m.month}</div>
+          ${fmtMoney(pnl)}
+        </div>
+      `;
+    }).join('');
+  } catch(e) { console.error('heatmap error:', e); }
+}
+
+// ─── Check Live DB ───
+async function checkLiveExists() {
+  try {
+    const res = await apiFetch('/api/status?mode=live');
+    LIVE_EXISTS = res.exists === true;
+  } catch { LIVE_EXISTS = false; }
+  updateModeUI();
+}
+
+// ─── Refresh All ───
+async function refreshAll() {
+  await Promise.all([
+    loadStatus(),
+    loadEquityChart(),
+    loadInstruments(),
+    loadTrades(),
+    loadVetoLog(),
+    loadRisk(),
+    loadHeatmap(),
+  ]);
+}
+
+// ─── Init ───
+async function init() {
+  updateModeUI();
+  await checkLiveExists();
+  await refreshAll();
+  // Auto-refresh every 30s
+  setInterval(refreshAll, 30000);
+  setInterval(checkLiveExists, 60000);
+}
+</script>
+</body>
+</html>
