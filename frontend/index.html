@@ -168,8 +168,11 @@ header {
 .trade-table td { padding: 6px 8px; border-bottom: 1px solid rgba(48,54,61,0.5); }
 .trade-table tr:hover { background: rgba(48,54,61,0.3); }
 
-/* Veto log — bottom right */
+/* Veto log — bottom right, matches risk/heatmap height */
 .veto-section { grid-column: 3 / 4; }
+.veto-section .veto-scroll {
+  max-height: 280px; overflow-y: auto;
+}
 .veto-item {
   padding: 8px 0; border-bottom: 1px solid rgba(48,54,61,0.5);
   font-size: 11px;
@@ -416,10 +419,10 @@ footer {
     <div class="heatmap-grid" id="heatmap-grid"></div>
   </div>
 
-  <!-- AI Veto Log (moved from upper right) -->
+  <!-- AI Veto Log (bottom right) -->
   <div class="card veto-section">
     <div class="card-header"><span class="card-title">AI Veto Log</span></div>
-    <div id="veto-log" style="max-height: 300px; overflow-y: auto;"></div>
+    <div class="veto-scroll" id="veto-log"></div>
   </div>
 </div>
 
@@ -736,27 +739,30 @@ function loadSignalStrength(apiInstruments) {
     const inst = bySymbol[def.symbol];
     let width, level, label, trendText, trendClass;
 
-    if (!inst) {
+    if (!inst || (inst.ema_fast == null && inst.ema_slow == null)) {
+      // No data yet
       width = 0; level = 'level-none'; label = '';
       trendText = '--'; trendClass = 'signal-trend-flat';
-    } else if (inst.position === 'LONG' || inst.position === 'SHORT') {
-      width = 95; level = 'level-breakout'; label = 'BREAKOUT';
-      trendText = inst.position; trendClass = inst.position === 'LONG' ? 'signal-trend-long' : 'signal-trend-short';
-    } else if (inst.quality_score >= 3) {
-      width = 85 + Math.random() * 10; level = 'level-breakout'; label = 'BREAKOUT';
-      trendText = inst.trend || 'FLAT'; trendClass = inst.trend === 'LONG' ? 'signal-trend-long' : inst.trend === 'SHORT' ? 'signal-trend-short' : 'signal-trend-flat';
-    } else if (inst.quality_score === 2) {
-      width = 50 + Math.random() * 10; level = 'level-watching'; label = '';
-      trendText = inst.trend || 'FLAT'; trendClass = inst.trend === 'LONG' ? 'signal-trend-long' : inst.trend === 'SHORT' ? 'signal-trend-short' : 'signal-trend-flat';
-    } else if (inst.quality_score === 1) {
-      width = 30 + Math.random() * 10; level = 'level-watching'; label = '';
-      trendText = inst.trend || 'FLAT'; trendClass = inst.trend === 'LONG' ? 'signal-trend-long' : inst.trend === 'SHORT' ? 'signal-trend-short' : 'signal-trend-flat';
-    } else if (inst.trend === 'FLAT' || !inst.trend) {
-      width = 5 + Math.random() * 10; level = 'level-none'; label = '';
+    } else if (inst.trend === 'LONG' || inst.trend === 'SHORT') {
+      // Trend confirmed — breakout level
+      width = 92; level = 'level-breakout'; label = 'BREAKOUT';
+      trendText = inst.trend;
+      trendClass = inst.trend === 'LONG' ? 'signal-trend-long' : 'signal-trend-short';
+    } else if (inst.trend === 'FLAT' && inst.ema_fast != null && inst.ema_slow != null) {
+      // FLAT — check if EMAs are close to crossing
+      const avg = (inst.ema_fast + inst.ema_slow) / 2;
+      const gap = Math.abs(inst.ema_fast - inst.ema_slow) / avg * 100;
+      if (gap <= 2) {
+        // EMAs within 2% — watching, close to crossover
+        width = 45; level = 'level-watching'; label = '';
+      } else {
+        // EMAs far apart — no signal
+        width = 10; level = 'level-none'; label = '';
+      }
       trendText = 'FLAT'; trendClass = 'signal-trend-flat';
     } else {
-      width = 5 + Math.random() * 10; level = 'level-none'; label = '';
-      trendText = inst.trend; trendClass = inst.trend === 'LONG' ? 'signal-trend-long' : inst.trend === 'SHORT' ? 'signal-trend-short' : 'signal-trend-flat';
+      width = 10; level = 'level-none'; label = '';
+      trendText = inst.trend || '--'; trendClass = 'signal-trend-flat';
     }
 
     return `
