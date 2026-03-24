@@ -128,15 +128,15 @@ header {
 /* Instrument grid */
 .instruments-section { grid-column: 1 / -1; }
 .instrument-grid {
-  display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px;
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;
 }
 .inst-card {
   background: var(--bg3); border: 1px solid var(--border); border-radius: 6px;
-  padding: 12px; position: relative;
+  padding: 10px; position: relative;
 }
-.inst-symbol { font-size: 16px; font-weight: 700; color: var(--text); }
-.inst-name { font-size: 9px; color: var(--text2); margin-bottom: 8px; }
-.inst-price { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+.inst-symbol { font-size: 14px; font-weight: 700; color: var(--text); }
+.inst-name { font-size: 8px; color: var(--text2); margin-bottom: 6px; }
+.inst-price { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
 .inst-trend {
   display: inline-block; padding: 2px 8px; border-radius: 3px;
   font-size: 10px; font-weight: 600; letter-spacing: 1px;
@@ -222,7 +222,7 @@ footer {
   .stats-bar { grid-template-columns: repeat(2, 1fr); }
   .equity-section, .instruments-section, .trades-section, .veto-section,
   .risk-section, .heatmap-section, .radar-section { grid-column: 1 / -1; }
-  .instrument-grid { grid-template-columns: repeat(3, 1fr); }
+  .instrument-grid { grid-template-columns: repeat(5, 1fr); }
   header { flex-direction: column; gap: 12px; }
 }
 @media (max-width: 600px) {
@@ -232,6 +232,22 @@ footer {
   header { padding: 12px; }
   footer { flex-direction: column; gap: 8px; text-align: center; }
 }
+
+/* Countdown timer */
+.countdown-bar {
+  grid-column: 1 / -1;
+  text-align: center; padding: 10px 0;
+}
+.countdown-label {
+  font-size: 11px; letter-spacing: 3px; color: var(--text2);
+  text-transform: uppercase; margin-bottom: 4px;
+}
+.countdown-value {
+  font-size: 20px; font-weight: 700; color: var(--green);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace; letter-spacing: 2px;
+}
+@keyframes countdown-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+.countdown-urgent .countdown-value { animation: countdown-pulse 0.8s infinite; color: #ffcc00; }
 
 /* Loading pulse */
 @keyframes pulse { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }
@@ -294,6 +310,12 @@ footer {
       <div class="stat-value neutral" id="stat-risk">0.00%</div>
       <div class="stat-sub" id="stat-risk-sub">of 12% max</div>
     </div>
+  </div>
+
+  <!-- Countdown Timer -->
+  <div class="countdown-bar" id="countdown-bar">
+    <div class="countdown-label">Next Trade Scan In</div>
+    <div class="countdown-value" id="countdown-value">--h --m --s</div>
   </div>
 
   <!-- Equity Chart -->
@@ -652,14 +674,14 @@ async function loadInstruments() {
       }
 
       // Place radar dot
-      placeRadarDot(inst, i);
+      placeRadarDot(inst, i, instruments.length);
     });
   } catch(e) { console.error('instruments error:', e); }
 }
 
-function placeRadarDot(inst, idx) {
+function placeRadarDot(inst, idx, total) {
   const dots = document.getElementById('radar-dots');
-  const angle = (idx / 6) * Math.PI * 2 - Math.PI / 2;
+  const angle = (idx / total) * Math.PI * 2 - Math.PI / 2;
   const r = inst.position ? 35 + Math.random() * 20 : 55 + Math.random() * 25;
   const x = 100 + Math.cos(angle) * r;
   const y = 100 + Math.sin(angle) * r;
@@ -798,6 +820,32 @@ async function checkLiveExists() {
   } catch { LIVE_EXISTS = false; }
   updateModeUI();
 }
+
+// ─── Countdown Timer ───
+function updateCountdown() {
+  const now = new Date();
+  const utcH = now.getUTCHours(), utcM = now.getUTCMinutes(), utcS = now.getUTCSeconds();
+  const nowSec = utcH * 3600 + utcM * 60 + utcS;
+  const scanSec = 21 * 3600 + 15 * 60; // 21:15 UTC
+  let diff = scanSec - nowSec;
+  if (diff <= 0) diff += 86400; // next day
+
+  const h = Math.floor(diff / 3600);
+  const m = Math.floor((diff % 3600) / 60);
+  const s = diff % 60;
+  const pad = n => String(n).padStart(2, '0');
+
+  document.getElementById('countdown-value').textContent = `${pad(h)}h ${pad(m)}m ${pad(s)}s`;
+
+  const bar = document.getElementById('countdown-bar');
+  if (diff <= 300) {
+    bar.classList.add('countdown-urgent');
+  } else {
+    bar.classList.remove('countdown-urgent');
+  }
+}
+setInterval(updateCountdown, 1000);
+updateCountdown();
 
 // ─── Refresh All ───
 async function refreshAll() {
