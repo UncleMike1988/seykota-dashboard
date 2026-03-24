@@ -169,9 +169,9 @@ header {
 .trade-table tr:hover { background: rgba(48,54,61,0.3); }
 
 /* Veto log — bottom right, matches risk/heatmap height */
-.veto-section { grid-column: 3 / 4; }
+.veto-section { grid-column: 3 / 4; max-height: 280px; }
 .veto-section .veto-scroll {
-  max-height: 280px; overflow-y: auto;
+  max-height: 220px; overflow-y: auto;
 }
 .veto-item {
   padding: 8px 0; border-bottom: 1px solid rgba(48,54,61,0.5);
@@ -739,8 +739,8 @@ function loadSignalStrength(apiInstruments) {
     const inst = bySymbol[def.symbol];
     let width, level, label, trendText, trendClass;
 
-    if (!inst || (inst.ema_fast == null && inst.ema_slow == null)) {
-      // No data yet
+    if (!inst) {
+      // Not in API response at all
       width = 0; level = 'level-none'; label = '';
       trendText = '--'; trendClass = 'signal-trend-flat';
     } else if (inst.trend === 'LONG' || inst.trend === 'SHORT') {
@@ -748,21 +748,20 @@ function loadSignalStrength(apiInstruments) {
       width = 92; level = 'level-breakout'; label = 'BREAKOUT';
       trendText = inst.trend;
       trendClass = inst.trend === 'LONG' ? 'signal-trend-long' : 'signal-trend-short';
-    } else if (inst.trend === 'FLAT' && inst.ema_fast != null && inst.ema_slow != null) {
-      // FLAT — check if EMAs are close to crossing
+    } else if (inst.ema_fast == null) {
+      // In API but no EMA data yet
+      width = 5; level = 'level-none'; label = '';
+      trendText = 'FLAT'; trendClass = 'signal-trend-flat';
+    } else {
+      // FLAT with EMA data — check proximity
       const avg = (inst.ema_fast + inst.ema_slow) / 2;
       const gap = Math.abs(inst.ema_fast - inst.ema_slow) / avg * 100;
       if (gap <= 2) {
-        // EMAs within 2% — watching, close to crossover
         width = 45; level = 'level-watching'; label = '';
       } else {
-        // EMAs far apart — no signal
         width = 10; level = 'level-none'; label = '';
       }
       trendText = 'FLAT'; trendClass = 'signal-trend-flat';
-    } else {
-      width = 10; level = 'level-none'; label = '';
-      trendText = inst.trend || '--'; trendClass = 'signal-trend-flat';
     }
 
     return `
