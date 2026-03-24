@@ -168,7 +168,7 @@ header {
 .trade-table td { padding: 6px 8px; border-bottom: 1px solid rgba(48,54,61,0.5); }
 .trade-table tr:hover { background: rgba(48,54,61,0.3); }
 
-/* Veto log */
+/* Veto log — bottom right */
 .veto-section { grid-column: 3 / 4; }
 .veto-item {
   padding: 8px 0; border-bottom: 1px solid rgba(48,54,61,0.5);
@@ -207,9 +207,49 @@ header {
   font-size: 11px; font-weight: 600;
 }
 
-/* Radar */
-.radar-section { grid-column: 3 / 4; }
-.radar-svg { width: 100%; height: 200px; }
+/* Signal Strength */
+.signal-section { grid-column: 3 / 4; }
+.signal-row {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
+}
+.signal-sym {
+  width: 44px; text-align: right; font-family: monospace; font-size: 11px;
+  font-weight: 600; color: var(--text); flex-shrink: 0;
+}
+.signal-bar-bg {
+  flex: 1; height: 20px; background: #161b22; border-radius: 4px;
+  overflow: hidden; position: relative;
+}
+.signal-bar-fill {
+  height: 100%; border-radius: 4px; transition: width 0.5s;
+  display: flex; align-items: center; justify-content: flex-end;
+}
+.signal-bar-fill.level-none { background: #30363d; }
+.signal-bar-fill.level-watching { background: linear-gradient(90deg, #b08800, #d29922); }
+.signal-bar-fill.level-breakout {
+  background: linear-gradient(90deg, #238636, #56d364);
+  animation: pulse-green 1.5s infinite;
+}
+.signal-bar-label {
+  padding-right: 6px; font-family: monospace; font-size: 10px;
+  font-weight: 700; color: #0d1117;
+}
+.signal-trend {
+  width: 48px; text-align: center; font-family: monospace; font-size: 11px;
+  font-weight: 600; flex-shrink: 0;
+}
+.signal-trend-long { color: #3fb950; }
+.signal-trend-short { color: #f85149; }
+.signal-trend-flat { color: #8b949e; }
+.signal-legend {
+  display: flex; gap: 16px; margin-top: 10px; padding-top: 8px;
+  border-top: 1px solid var(--border); font-size: 10px; color: var(--text2);
+}
+.signal-legend-item { display: flex; align-items: center; gap: 4px; }
+.signal-legend-swatch {
+  width: 10px; height: 10px; border-radius: 2px;
+}
+@keyframes pulse-green { 0%,100% { opacity: 1; } 50% { opacity: 0.7; } }
 
 /* Footer */
 footer {
@@ -227,7 +267,7 @@ footer {
   .dashboard { grid-template-columns: 1fr; }
   .stats-bar { grid-template-columns: repeat(2, 1fr); }
   .equity-section, .instruments-section, .trades-section, .veto-section,
-  .risk-section, .heatmap-section, .radar-section { grid-column: 1 / -1; }
+  .risk-section, .heatmap-section, .signal-section { grid-column: 1 / -1; }
   header { flex-direction: column; gap: 12px; }
 }
 @media (max-width: 768px) {
@@ -260,9 +300,6 @@ footer {
 @keyframes pulse { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }
 .loading { animation: pulse 1.5s infinite; color: var(--text2); text-align: center; padding: 40px; }
 
-/* Radar animation */
-@keyframes radar-sweep { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-.radar-sweep { animation: radar-sweep 4s linear infinite; transform-origin: center; }
 </style>
 </head>
 <body>
@@ -361,10 +398,10 @@ footer {
     </div>
   </div>
 
-  <!-- AI Veto Log -->
-  <div class="card veto-section">
-    <div class="card-header"><span class="card-title">AI Veto Log</span></div>
-    <div id="veto-log" style="max-height: 300px; overflow-y: auto;"></div>
+  <!-- Signal Strength (was Breakout Scanner) -->
+  <div class="card signal-section">
+    <div class="card-header"><span class="card-title">Signal Strength</span></div>
+    <div id="signal-bars"></div>
   </div>
 
   <!-- Risk Exposure -->
@@ -379,31 +416,10 @@ footer {
     <div class="heatmap-grid" id="heatmap-grid"></div>
   </div>
 
-  <!-- Breakout Radar -->
-  <div class="card radar-section">
-    <div class="card-header"><span class="card-title">Breakout Scanner</span></div>
-    <svg class="radar-svg" viewBox="0 0 200 200" id="radar-svg">
-      <circle cx="100" cy="100" r="90" fill="none" stroke="#30363d" stroke-width="1"/>
-      <circle cx="100" cy="100" r="60" fill="none" stroke="#30363d" stroke-width="0.5"/>
-      <circle cx="100" cy="100" r="30" fill="none" stroke="#30363d" stroke-width="0.5"/>
-      <line x1="100" y1="10" x2="100" y2="190" stroke="#30363d" stroke-width="0.5"/>
-      <line x1="10" y1="100" x2="190" y2="100" stroke="#30363d" stroke-width="0.5"/>
-      <!-- Sweep line -->
-      <g class="radar-sweep">
-        <line x1="100" y1="100" x2="100" y2="10" stroke="rgba(0,255,136,0.6)" stroke-width="2"/>
-        <defs>
-          <linearGradient id="sweepGrad" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stop-color="rgba(0,255,136,0)" />
-            <stop offset="100%" stop-color="rgba(0,255,136,0.2)" />
-          </linearGradient>
-        </defs>
-        <path d="M100,100 L100,10 A90,90 0 0,0 22,55 Z" fill="url(#sweepGrad)"/>
-      </g>
-      <!-- Instrument dots will be placed here -->
-      <g id="radar-dots"></g>
-      <!-- Labels -->
-      <text x="100" y="200" text-anchor="middle" fill="#8b949e" font-size="8" font-family="monospace">SCANNING</text>
-    </svg>
+  <!-- AI Veto Log (moved from upper right) -->
+  <div class="card veto-section">
+    <div class="card-header"><span class="card-title">AI Veto Log</span></div>
+    <div id="veto-log" style="max-height: 300px; overflow-y: auto;"></div>
   </div>
 </div>
 
@@ -640,13 +656,14 @@ async function loadInstruments() {
   let apiInstruments = [];
   try { apiInstruments = await apiFetch('/api/instruments'); } catch(e) { console.error('instruments error:', e); }
 
+  // Update signal strength panel with same data
+  loadSignalStrength(apiInstruments);
+
   const bySymbol = {};
   apiInstruments.forEach(inst => { bySymbol[inst.symbol] = inst; });
 
   const grid = document.getElementById('instrument-grid');
   grid.innerHTML = '';
-  const dots = document.getElementById('radar-dots');
-  dots.innerHTML = '';
 
   ALL_SYMBOLS.forEach((def, i) => {
     const inst = bySymbol[def.symbol];
@@ -693,7 +710,6 @@ async function loadInstruments() {
           });
         }, 50);
       }
-      placeRadarDot(inst, i, ALL_SYMBOLS.length);
     } else {
       // Placeholder card
       card.innerHTML = `
@@ -705,30 +721,65 @@ async function loadInstruments() {
         <div class="inst-pnl">&nbsp;</div>
         <div class="sparkline-container"></div>
       `;
-      placeRadarDot({symbol: def.symbol, position: null}, i, ALL_SYMBOLS.length);
     }
     grid.appendChild(card);
   });
 }
 
-function placeRadarDot(inst, idx, total) {
-  const dots = document.getElementById('radar-dots');
-  const angle = (idx / total) * Math.PI * 2 - Math.PI / 2;
-  const r = inst.position ? 35 + Math.random() * 20 : 55 + Math.random() * 25;
-  const x = 100 + Math.cos(angle) * r;
-  const y = 100 + Math.sin(angle) * r;
-  const color = inst.position === 'LONG' ? '#00ff88' : inst.position === 'SHORT' ? '#ff4444' : '#8b949e';
+// ─── Signal Strength ───
+function loadSignalStrength(apiInstruments) {
+  const bySymbol = {};
+  (apiInstruments || []).forEach(inst => { bySymbol[inst.symbol] = inst; });
 
-  const existing = dots.querySelector(`[data-sym="${inst.symbol}"]`);
-  if (existing) existing.remove();
+  const container = document.getElementById('signal-bars');
+  let html = ALL_SYMBOLS.map(def => {
+    const inst = bySymbol[def.symbol];
+    let width, level, label, trendText, trendClass;
 
-  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-  g.setAttribute('data-sym', inst.symbol);
-  g.innerHTML = `
-    <circle cx="${x}" cy="${y}" r="4" fill="${color}" opacity="0.8"/>
-    <text x="${x}" y="${y - 8}" text-anchor="middle" fill="${color}" font-size="7" font-family="monospace">${inst.symbol}</text>
+    if (!inst) {
+      width = 0; level = 'level-none'; label = '';
+      trendText = '--'; trendClass = 'signal-trend-flat';
+    } else if (inst.position === 'LONG' || inst.position === 'SHORT') {
+      width = 95; level = 'level-breakout'; label = 'BREAKOUT';
+      trendText = inst.position; trendClass = inst.position === 'LONG' ? 'signal-trend-long' : 'signal-trend-short';
+    } else if (inst.quality_score >= 3) {
+      width = 85 + Math.random() * 10; level = 'level-breakout'; label = 'BREAKOUT';
+      trendText = inst.trend || 'FLAT'; trendClass = inst.trend === 'LONG' ? 'signal-trend-long' : inst.trend === 'SHORT' ? 'signal-trend-short' : 'signal-trend-flat';
+    } else if (inst.quality_score === 2) {
+      width = 50 + Math.random() * 10; level = 'level-watching'; label = '';
+      trendText = inst.trend || 'FLAT'; trendClass = inst.trend === 'LONG' ? 'signal-trend-long' : inst.trend === 'SHORT' ? 'signal-trend-short' : 'signal-trend-flat';
+    } else if (inst.quality_score === 1) {
+      width = 30 + Math.random() * 10; level = 'level-watching'; label = '';
+      trendText = inst.trend || 'FLAT'; trendClass = inst.trend === 'LONG' ? 'signal-trend-long' : inst.trend === 'SHORT' ? 'signal-trend-short' : 'signal-trend-flat';
+    } else if (inst.trend === 'FLAT' || !inst.trend) {
+      width = 5 + Math.random() * 10; level = 'level-none'; label = '';
+      trendText = 'FLAT'; trendClass = 'signal-trend-flat';
+    } else {
+      width = 5 + Math.random() * 10; level = 'level-none'; label = '';
+      trendText = inst.trend; trendClass = inst.trend === 'LONG' ? 'signal-trend-long' : inst.trend === 'SHORT' ? 'signal-trend-short' : 'signal-trend-flat';
+    }
+
+    return `
+      <div class="signal-row">
+        <span class="signal-sym">${def.symbol}</span>
+        <div class="signal-bar-bg">
+          <div class="signal-bar-fill ${level}" style="width:${width}%">
+            ${label ? `<span class="signal-bar-label">${label}</span>` : ''}
+          </div>
+        </div>
+        <span class="signal-trend ${trendClass}">${trendText}</span>
+      </div>
+    `;
+  }).join('');
+
+  html += `
+    <div class="signal-legend">
+      <div class="signal-legend-item"><span class="signal-legend-swatch" style="background:#30363d"></span>No signal</div>
+      <div class="signal-legend-item"><span class="signal-legend-swatch" style="background:#d29922"></span>Watching</div>
+      <div class="signal-legend-item"><span class="signal-legend-swatch" style="background:#56d364"></span>Breakout</div>
+    </div>
   `;
-  dots.appendChild(g);
+  container.innerHTML = html;
 }
 
 // ─── Trades ───
