@@ -128,32 +128,35 @@ header {
 /* Instrument grid */
 .instruments-section { grid-column: 1 / -1; }
 .instrument-grid {
-  display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px;
+  max-width: 100%;
 }
 .inst-card {
   background: var(--bg3); border: 1px solid var(--border); border-radius: 6px;
-  padding: 10px; position: relative;
+  padding: 8px 10px; position: relative; min-width: 0; overflow: hidden;
 }
-.inst-symbol { font-size: 14px; font-weight: 700; color: var(--text); }
-.inst-name { font-size: 8px; color: var(--text2); margin-bottom: 6px; }
-.inst-price { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+.inst-symbol { font-size: 0.85rem; font-weight: 700; color: var(--text); }
+.inst-name { font-size: 0.65rem; color: var(--text2); margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.inst-price { font-size: 1.1rem; font-weight: 600; margin-bottom: 3px; }
 .inst-trend {
-  display: inline-block; padding: 2px 8px; border-radius: 3px;
-  font-size: 10px; font-weight: 600; letter-spacing: 1px;
+  display: inline-block; padding: 2px 6px; border-radius: 3px;
+  font-size: 0.6rem; font-weight: 600; letter-spacing: 1px;
 }
 .trend-long { background: rgba(0,255,136,0.15); color: var(--green); }
 .trend-short { background: rgba(255,68,68,0.15); color: var(--red); }
 .trend-flat { background: rgba(139,148,158,0.15); color: var(--text2); }
+.trend-pending { background: rgba(139,148,158,0.08); color: #484f58; }
 .inst-badge {
-  position: absolute; top: 10px; right: 10px;
-  padding: 2px 8px; border-radius: 3px; font-size: 9px; font-weight: 700;
+  position: absolute; top: 8px; right: 8px;
+  padding: 2px 6px; border-radius: 3px; font-size: 0.5rem; font-weight: 700;
   letter-spacing: 1px;
 }
 .badge-long { background: rgba(0,255,136,0.2); color: var(--green); }
 .badge-short { background: rgba(255,68,68,0.2); color: var(--red); }
 .badge-scanning { background: rgba(139,148,158,0.15); color: var(--text2); }
-.inst-pnl { font-size: 12px; margin-top: 6px; font-weight: 600; }
-.sparkline-container { height: 30px; margin-top: 6px; }
+.badge-pending { background: rgba(139,148,158,0.08); color: #484f58; }
+.inst-pnl { font-size: 0.75rem; margin-top: 4px; font-weight: 600; }
+.sparkline-container { height: 28px; margin-top: 4px; }
 
 /* Trades */
 .trades-section { grid-column: 1 / 3; }
@@ -217,18 +220,22 @@ footer {
 .footer-items { display: flex; gap: 24px; }
 
 /* Responsive */
+@media (max-width: 1200px) {
+  .instrument-grid { grid-template-columns: repeat(3, 1fr); }
+}
 @media (max-width: 1024px) {
   .dashboard { grid-template-columns: 1fr; }
   .stats-bar { grid-template-columns: repeat(2, 1fr); }
   .equity-section, .instruments-section, .trades-section, .veto-section,
   .risk-section, .heatmap-section, .radar-section { grid-column: 1 / -1; }
-  .instrument-grid { grid-template-columns: repeat(5, 1fr); }
   header { flex-direction: column; gap: 12px; }
+}
+@media (max-width: 768px) {
+  .instrument-grid { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 600px) {
   .dashboard { padding: 8px; gap: 8px; }
   .stats-bar { grid-template-columns: 1fr; }
-  .instrument-grid { grid-template-columns: 1fr 1fr; }
   header { padding: 12px; }
   footer { flex-direction: column; gap: 8px; text-align: center; }
 }
@@ -621,23 +628,39 @@ function setChartRange(days, btn) {
 }
 
 // ─── Instruments ───
-async function loadInstruments() {
-  try {
-    const instruments = await apiFetch('/api/instruments');
-    const grid = document.getElementById('instrument-grid');
-    grid.innerHTML = '';
+const ALL_SYMBOLS = [
+  {symbol:'MES', name:'Micro S&P 500'}, {symbol:'MNQ', name:'Micro Nasdaq 100'},
+  {symbol:'M2K', name:'Micro Russell 2000'}, {symbol:'MGC', name:'Micro Gold'},
+  {symbol:'MCL', name:'Micro Crude Oil'}, {symbol:'M6E', name:'Micro Euro FX'},
+  {symbol:'MBT', name:'Micro Bitcoin'}, {symbol:'MHNG', name:'Micro Nat Gas'},
+  {symbol:'10Y', name:'Micro 10Y Yield'}, {symbol:'MHG', name:'Micro Copper'},
+];
 
-    instruments.forEach((inst, i) => {
+async function loadInstruments() {
+  let apiInstruments = [];
+  try { apiInstruments = await apiFetch('/api/instruments'); } catch(e) { console.error('instruments error:', e); }
+
+  const bySymbol = {};
+  apiInstruments.forEach(inst => { bySymbol[inst.symbol] = inst; });
+
+  const grid = document.getElementById('instrument-grid');
+  grid.innerHTML = '';
+  const dots = document.getElementById('radar-dots');
+  dots.innerHTML = '';
+
+  ALL_SYMBOLS.forEach((def, i) => {
+    const inst = bySymbol[def.symbol];
+    const card = document.createElement('div');
+    card.className = 'inst-card';
+
+    if (inst) {
       const trendCls = inst.trend === 'LONG' ? 'trend-long' : inst.trend === 'SHORT' ? 'trend-short' : 'trend-flat';
       const posBadge = inst.position === 'LONG' ? '<span class="inst-badge badge-long">LONG</span>' :
         inst.position === 'SHORT' ? '<span class="inst-badge badge-short">SHORT</span>' :
         '<span class="inst-badge badge-scanning">SCANNING</span>';
-
-      const card = document.createElement('div');
-      card.className = 'inst-card';
       card.innerHTML = `
         <div class="inst-symbol">${inst.symbol}</div>
-        <div class="inst-name">${inst.name}</div>
+        <div class="inst-name">${inst.name || def.name}</div>
         ${posBadge}
         <div class="inst-price">${fmtPrice(inst.last_price)}</div>
         <span class="inst-trend ${trendCls}">${inst.trend}</span>
@@ -646,9 +669,7 @@ async function loadInstruments() {
         </div>
         <div class="sparkline-container"><canvas id="spark-${inst.symbol}"></canvas></div>
       `;
-      grid.appendChild(card);
-
-      // Mini sparkline
+      // Sparkline
       if (inst.sparkline && inst.sparkline.length > 1) {
         setTimeout(() => {
           const canvas = document.getElementById(`spark-${inst.symbol}`);
@@ -672,11 +693,22 @@ async function loadInstruments() {
           });
         }, 50);
       }
-
-      // Place radar dot
-      placeRadarDot(inst, i, instruments.length);
-    });
-  } catch(e) { console.error('instruments error:', e); }
+      placeRadarDot(inst, i, ALL_SYMBOLS.length);
+    } else {
+      // Placeholder card
+      card.innerHTML = `
+        <div class="inst-symbol">${def.symbol}</div>
+        <div class="inst-name">${def.name}</div>
+        <span class="inst-badge badge-pending">AWAITING DATA</span>
+        <div class="inst-price" style="color:var(--text2)">--</div>
+        <span class="inst-trend trend-pending">PENDING</span>
+        <div class="inst-pnl">&nbsp;</div>
+        <div class="sparkline-container"></div>
+      `;
+      placeRadarDot({symbol: def.symbol, position: null}, i, ALL_SYMBOLS.length);
+    }
+    grid.appendChild(card);
+  });
 }
 
 function placeRadarDot(inst, idx, total) {
@@ -751,16 +783,22 @@ async function loadRisk() {
   try {
     const data = await apiFetch('/api/risk-exposure');
     const container = document.getElementById('risk-bars');
-    const maxPct = data.max_risk;
+    const maxPct = data.max_risk || 12;
 
-    let html = data.instruments.map(inst => {
-      const pct = inst.risk_pct;
+    // Build lookup from API data
+    const bySymbol = {};
+    (data.instruments || []).forEach(inst => { bySymbol[inst.symbol] = inst; });
+
+    // Show all 10 symbols
+    let html = ALL_SYMBOLS.map(def => {
+      const inst = bySymbol[def.symbol];
+      const pct = inst ? inst.risk_pct : 0;
       const width = Math.min((pct / maxPct) * 100, 100);
       const color = pct > maxPct * 0.8 ? 'var(--red)' : pct > 0 ? 'var(--green)' : 'var(--text2)';
       return `
         <div class="risk-bar-wrap">
           <div class="risk-bar-label">
-            <span>${inst.symbol}</span>
+            <span>${def.symbol}</span>
             <span>${fmtPct(pct)}</span>
           </div>
           <div class="risk-bar-bg">
@@ -771,13 +809,14 @@ async function loadRisk() {
     }).join('');
 
     // Total
-    const totalWidth = Math.min((data.total_risk_pct / maxPct) * 100, 100);
-    const totalColor = data.total_risk_pct > maxPct * 0.8 ? 'var(--red)' : 'var(--yellow)';
+    const totalPct = data.total_risk_pct || 0;
+    const totalWidth = Math.min((totalPct / maxPct) * 100, 100);
+    const totalColor = totalPct > maxPct * 0.8 ? 'var(--red)' : 'var(--yellow)';
     html += `
       <div class="risk-bar-wrap" style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border)">
         <div class="risk-bar-label">
           <span style="font-weight:700">TOTAL</span>
-          <span style="font-weight:700">${fmtPct(data.total_risk_pct)} / ${maxPct}%</span>
+          <span style="font-weight:700">${fmtPct(totalPct)} / ${maxPct}%</span>
         </div>
         <div class="risk-bar-bg" style="height:12px">
           <div class="risk-bar-fill" style="width:${totalWidth}%; background:${totalColor}; height:100%"></div>
