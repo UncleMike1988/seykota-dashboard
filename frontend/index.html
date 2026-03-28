@@ -739,29 +739,43 @@ function loadSignalStrength(apiInstruments) {
     const inst = bySymbol[def.symbol];
     let width, level, label, trendText, trendClass;
 
-    if (!inst) {
-      // Not in API response at all
+    if (!inst || inst.ema_fast == null || inst.ema_slow == null) {
+      // No data at all
       width = 0; level = 'level-none'; label = '';
       trendText = '--'; trendClass = 'signal-trend-flat';
-    } else if (inst.trend === 'LONG' || inst.trend === 'SHORT') {
-      // Trend confirmed — breakout level
-      width = 92; level = 'level-breakout'; label = 'BREAKOUT';
-      trendText = inst.trend;
-      trendClass = inst.trend === 'LONG' ? 'signal-trend-long' : 'signal-trend-short';
-    } else if (inst.ema_fast == null) {
-      // In API but no EMA data yet
-      width = 5; level = 'level-none'; label = '';
-      trendText = 'FLAT'; trendClass = 'signal-trend-flat';
     } else {
-      // FLAT with EMA data — check proximity
-      const avg = (inst.ema_fast + inst.ema_slow) / 2;
-      const gap = Math.abs(inst.ema_fast - inst.ema_slow) / avg * 100;
-      if (gap <= 2) {
-        width = 45; level = 'level-watching'; label = '';
+      // Continuous scaling based on EMA convergence
+      const convergence = Math.abs(inst.ema_fast - inst.ema_slow) / inst.ema_slow * 100;
+
+      if (inst.trend === 'LONG' || inst.trend === 'SHORT') {
+        // EMAs aligned — show TREND (not BREAKOUT; breakout requires actual trade)
+        // Scale 65-95% based on how far past crossover (0-3%+ convergence)
+        const t = Math.min(convergence / 3, 1);
+        width = 65 + t * 30;
+        level = 'level-breakout';
+        label = inst.position ? 'BREAKOUT' : 'TREND';
+        trendText = inst.trend;
+        trendClass = inst.trend === 'LONG' ? 'signal-trend-long' : 'signal-trend-short';
       } else {
-        width = 10; level = 'level-none'; label = '';
+        // FLAT — scale by proximity to crossover
+        if (convergence > 5) {
+          // Far from crossover: 5-15%
+          width = 5 + Math.min((convergence - 5) / 5, 1) * 10;
+          level = 'level-none';
+        } else if (convergence > 2) {
+          // Approaching crossover: 20-40%
+          const t = (convergence - 2) / 3;
+          width = 40 - t * 20;
+          level = 'level-watching';
+        } else {
+          // Close to crossover: 40-60%
+          const t = convergence / 2;
+          width = 60 - t * 20;
+          level = 'level-watching';
+        }
+        label = '';
+        trendText = 'FLAT'; trendClass = 'signal-trend-flat';
       }
-      trendText = 'FLAT'; trendClass = 'signal-trend-flat';
     }
 
     return `
